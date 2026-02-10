@@ -469,11 +469,39 @@ Sub2API supports two types of Anthropic account configurations: **OAuth** and **
 | **Use Cases** | Applications requiring user profile access | Applications needing only API inference |
 | **Security** | Higher (periodic token refresh) | Lower (long-lived token) |
 | **Configuration Complexity** | Requires OAuth flow | Relatively simple |
+| **Usage Data Retrieval** | Calls Anthropic API, gets official real data | Estimated based on session_window |
 
 ### How to Choose
 
 - **Recommended: OAuth** - Suitable for most scenarios, higher security, automatic token refresh, supports full user profile access.
 - **Use Setup Token** - Suitable for scenarios requiring only AI inference functionality, simpler configuration, long-lived token with no frequent updates needed.
+
+### Critical Difference in Usage Window Statistics
+
+The two account types have key differences in **usage window statistics**:
+
+#### OAuth Account Usage Statistics
+- **Data Source**: Directly calls Anthropic official API (requires `user:profile` permission)
+- **Data Accuracy**: Gets official real data, most accurate and reliable
+- **Available Windows**:
+  - ✅ 5-hour window (five_hour)
+  - ✅ 7-day window (seven_day)
+  - ✅ 7-day Sonnet window (seven_day_sonnet)
+- **API Response Cache**: 3 minutes (to avoid frequent calls)
+- **Local Statistics**: Queries actual requests, tokens, and costs from database (cached for 1 minute)
+
+#### Setup Token Account Usage Statistics
+- **Data Source**: Estimated based on `session_window` field (because it lacks `user:profile` permission, **cannot call usage API**)
+- **Data Accuracy**: Estimated value, inferred from session window status, less precise
+- **Available Windows**:
+  - ⚠️ 5-hour window - Estimated only (utilization guessed from `session_window_status`)
+  - ❌ 7-day window - **Unavailable**
+  - ❌ 7-day Sonnet window - **Unavailable**
+- **Estimation Logic**:
+  - `rejected` status → 100% utilization
+  - `allowed_warning` status → 80% utilization
+  - Other statuses → 0% utilization
+- **Local Statistics**: Same as OAuth, queries actual data from database
 
 ### Technical Details
 
@@ -483,11 +511,18 @@ The main differences at the code level:
   - Includes both `user:profile` and `user:inference` scopes
   - Short-lived token, system automatically refreshes before expiration
   - Token lifecycle managed automatically by `ClaudeTokenRefresher`
+  - `CanGetUsage()` method returns `true`, allowing official usage data queries
 
 - **Setup Token Account** (`type: setup-token`):
   - Includes only `user:inference` scope
   - 1-year validity period, no frequent refresh needed
   - Stable long-term operation after configuration
+  - `CanGetUsage()` returns `false`, cannot query official usage data, only estimates
+
+**Code References**:
+- `backend/internal/service/account_usage_service.go` - `GetUsage()` method handles both types differently
+- `backend/internal/service/account_usage_service.go` - `estimateSetupTokenUsage()` estimates Setup Token usage
+- `backend/internal/service/account.go` - `CanGetUsage()` determines if official usage data can be retrieved
 
 ---
 

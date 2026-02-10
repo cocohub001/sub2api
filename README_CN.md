@@ -476,11 +476,39 @@ Sub2API 支持两种 Anthropic 账号配置方式：**OAuth** 和 **Setup Token*
 | **适用场景** | 需要访问用户资料的应用 | 仅需 API 推理的应用 |
 | **安全性** | 更高（定期刷新 Token） | 较低（长期有效） |
 | **配置复杂度** | 需要 OAuth 流程 | 相对简单 |
+| **用量数据获取** | 调用 Anthropic API，获取官方真实数据 | 基于 session_window 推算，数据为估算值 |
 
 ### 如何选择
 
 - **推荐使用 OAuth**：适合大多数场景，安全性更高，Token 会自动刷新，支持完整的用户资料访问。
 - **使用 Setup Token**：适合仅需要 AI 推理功能的场景，配置更简单，Token 长期有效无需频繁更新。
+
+### 用量窗口统计的重要区别
+
+两种账号类型在**用量窗口统计**方面存在关键差异：
+
+#### OAuth 账号的用量统计
+- **数据来源**：直接调用 Anthropic 官方 API（需要 `user:profile` 权限）
+- **数据准确性**：获取官方真实数据，最准确可靠
+- **可用窗口**：
+  - ✅ 5小时窗口（five_hour）
+  - ✅ 7天窗口（seven_day）
+  - ✅ 7天Sonnet窗口（seven_day_sonnet）
+- **API 响应缓存**：3 分钟（避免频繁调用）
+- **本地统计**：从数据库查询实际请求数、Token 数和费用（缓存1分钟）
+
+#### Setup Token 账号的用量统计
+- **数据来源**：根据 `session_window` 字段推算（因为没有 `user:profile` 权限，**无法调用 usage API**）
+- **数据准确性**：估算值，基于会话窗口状态推断，不够精确
+- **可用窗口**：
+  - ⚠️ 5小时窗口 - 仅提供推算值（根据 `session_window_status` 估算使用率）
+  - ❌ 7天窗口 - **不可用**
+  - ❌ 7天Sonnet窗口 - **不可用**
+- **估算逻辑**：
+  - `rejected` 状态 → 使用率 100%
+  - `allowed_warning` 状态 → 使用率 80%
+  - 其他状态 → 使用率 0%
+- **本地统计**：与 OAuth 相同，从数据库查询实际数据
 
 ### 技术细节
 
@@ -490,11 +518,18 @@ Sub2API 支持两种 Anthropic 账号配置方式：**OAuth** 和 **Setup Token*
   - 包含 `user:profile` 和 `user:inference` scope
   - Token 短期有效，系统会在过期前自动刷新
   - 通过 `ClaudeTokenRefresher` 自动管理 Token 生命周期
+  - 可调用 `CanGetUsage()` 方法返回 `true`，允许查询官方用量数据
 
 - **Setup Token 账号**（`type: setup-token`）：
   - 仅包含 `user:inference` scope
   - Token 有效期 1 年，无需频繁刷新
   - 配置后长期稳定运行
+  - `CanGetUsage()` 返回 `false`，无法查询官方用量数据，只能推算
+
+**代码参考**：
+- `backend/internal/service/account_usage_service.go` - `GetUsage()` 方法区分处理两种类型
+- `backend/internal/service/account_usage_service.go` - `estimateSetupTokenUsage()` 推算 Setup Token 用量
+- `backend/internal/service/account.go` - `CanGetUsage()` 判断是否可获取官方用量
 
 ---
 
