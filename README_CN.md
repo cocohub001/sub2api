@@ -462,6 +462,42 @@ go generate ./cmd/server
 
 ---
 
+## Anthropic 账号类型说明
+
+Sub2API 支持两种 Anthropic 账号配置方式：**OAuth** 和 **Setup Token**。两者的主要区别在于权限范围和 Token 有效期。
+
+### OAuth 与 Setup Token 对比
+
+| 特性 | OAuth | Setup Token |
+|------|-------|-------------|
+| **权限范围** | 完整权限（`user:profile` + `user:inference`） | 仅推理权限（`user:inference`） |
+| **Token 有效期** | 短期（通常几小时） | 长期（1 年） |
+| **自动刷新** | 需要（系统自动处理） | 不需要 |
+| **适用场景** | 需要访问用户资料的应用 | 仅需 API 推理的应用 |
+| **安全性** | 更高（定期刷新 Token） | 较低（长期有效） |
+| **配置复杂度** | 需要 OAuth 流程 | 相对简单 |
+
+### 如何选择
+
+- **推荐使用 OAuth**：适合大多数场景，安全性更高，Token 会自动刷新，支持完整的用户资料访问。
+- **使用 Setup Token**：适合仅需要 AI 推理功能的场景，配置更简单，Token 长期有效无需频繁更新。
+
+### 技术细节
+
+两种方式在代码层面的主要差异：
+
+- **OAuth 账号**（`type: oauth`）：
+  - 包含 `user:profile` 和 `user:inference` scope
+  - Token 短期有效，系统会在过期前自动刷新
+  - 通过 `ClaudeTokenRefresher` 自动管理 Token 生命周期
+
+- **Setup Token 账号**（`type: setup-token`）：
+  - 仅包含 `user:inference` scope
+  - Token 有效期 1 年，无需频繁刷新
+  - 配置后长期稳定运行
+
+---
+
 ## Antigravity 使用说明
 
 Sub2API 支持 [Antigravity](https://antigravity.so/) 账户，授权后可通过专用端点访问 Claude 和 Gemini 模型。

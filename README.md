@@ -455,6 +455,42 @@ Simple Mode is designed for individual developers or internal teams who want qui
 
 ---
 
+## Anthropic Account Types
+
+Sub2API supports two types of Anthropic account configurations: **OAuth** and **Setup Token**. The main differences lie in permission scope and token validity period.
+
+### OAuth vs Setup Token Comparison
+
+| Feature | OAuth | Setup Token |
+|---------|-------|-------------|
+| **Permission Scope** | Full permissions (`user:profile` + `user:inference`) | Inference only (`user:inference`) |
+| **Token Validity** | Short-term (typically a few hours) | Long-term (1 year) |
+| **Auto Refresh** | Required (handled automatically by system) | Not required |
+| **Use Cases** | Applications requiring user profile access | Applications needing only API inference |
+| **Security** | Higher (periodic token refresh) | Lower (long-lived token) |
+| **Configuration Complexity** | Requires OAuth flow | Relatively simple |
+
+### How to Choose
+
+- **Recommended: OAuth** - Suitable for most scenarios, higher security, automatic token refresh, supports full user profile access.
+- **Use Setup Token** - Suitable for scenarios requiring only AI inference functionality, simpler configuration, long-lived token with no frequent updates needed.
+
+### Technical Details
+
+The main differences at the code level:
+
+- **OAuth Account** (`type: oauth`):
+  - Includes both `user:profile` and `user:inference` scopes
+  - Short-lived token, system automatically refreshes before expiration
+  - Token lifecycle managed automatically by `ClaudeTokenRefresher`
+
+- **Setup Token Account** (`type: setup-token`):
+  - Includes only `user:inference` scope
+  - 1-year validity period, no frequent refresh needed
+  - Stable long-term operation after configuration
+
+---
+
 ## Antigravity Support
 
 Sub2API supports [Antigravity](https://antigravity.so/) accounts. After authorization, dedicated endpoints are available for Claude and Gemini models.
